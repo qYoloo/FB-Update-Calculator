@@ -234,14 +234,14 @@
             background: #0d0d12;
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 16px 18px;
-            border-left: 3px solid var(--purple);
+            padding: 20px;
+            border-top: 4px solid var(--purple);
             transition: transform 0.15s, box-shadow 0.15s;
         }
         .result-box:hover { transform: translateX(3px); box-shadow: var(--glow-purple); }
-        .result-box.method-2 { border-left-color: var(--pink); }
+        .result-box.method-2 { border-top-color: var(--pink); }
         .result-box.method-2:hover { box-shadow: 0 0 20px rgba(244, 114, 182, 0.15); }
-        .result-box.method-3 { border-left-color: var(--yellow); }
+        .result-box.method-3 { border-top-color: var(--yellow); }
         .result-box.method-3:hover { box-shadow: 0 0 20px rgba(251, 191, 36, 0.15); }
 
         .result-tag {
@@ -250,31 +250,34 @@
             letter-spacing: 1px;
             color: var(--muted);
             font-family: 'Share Tech Mono', monospace;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .result-main {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .result-days {
+
+        /* Big cyan date/overdue line */
+        .result-status {
             font-family: 'Rajdhani', sans-serif;
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-        .result-days span { font-size: 0.85rem; color: var(--muted); font-family: 'Nunito', sans-serif; font-weight: 600; }
-        .result-date {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.82rem;
+            font-size: 1.75rem;
             color: var(--cyan);
-            margin-top: 4px;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 4px;
+            line-height: 1.2;
+            text-shadow: 0 0 12px rgba(34, 211, 238, 0.4);
         }
+
+        /* Small pure-white detail line */
+        .result-days {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 400;
+            color: var(--text);
+            margin-top: 2px;
+        }
+
         .result-desc {
             font-size: 0.75rem;
             color: var(--muted);
-            margin-top: 4px;
+            margin-top: 8px;
         }
 
         .progress-section { margin-top: 24px; }
@@ -443,7 +446,7 @@
 
         <div class="card card-purple">
             <div class="card-title">Update Predictor</div>
-            <div class="card-sub">// estimate when a specific update will drop, im too lazy to add decimals so you need to do 1 extra update because 14.5 counts as 15, e.g. type 23 and you get update 22</div>
+            <div class="card-sub">// estimate when a specific update will drop, i added decimals because 14.5 exists but otherwise it's just a functionality im too lazy to "prevent from happening"</div>
 
             <div class="input-group">
                 <label class="input-label">Target Update Number</label>
@@ -469,28 +472,19 @@
             </div>
 
             <div class="results-grid">
-                <div class="result-box">
+                <div class="result-box" id="box-m1">
                     <div class="result-tag">Method 1 — Simple Average</div>
-                    <div class="result-main">
-                        <div class="result-days" id="m1-days">—<span> days</span></div>
-                    </div>
-                    <div class="result-date" id="m1-date">—</div>
+                    <div class="result-body"></div>
                     <div class="result-desc">Average of all historical gaps × updates remaining</div>
                 </div>
-                <div class="result-box method-2">
+                <div class="result-box method-2" id="box-m2">
                     <div class="result-tag">Method 2 — Compound Growth Rate</div>
-                    <div class="result-main">
-                        <div class="result-days" id="m2-days">—<span> days</span></div>
-                    </div>
-                    <div class="result-date" id="m2-date">—</div>
+                    <div class="result-body"></div>
                     <div class="result-desc">Models the increasing gap trend with exponential growth</div>
                 </div>
-                <div class="result-box method-3">
+                <div class="result-box method-3" id="box-m3">
                     <div class="result-tag">Method 3 — Recent Weighted</div>
-                    <div class="result-main">
-                        <div class="result-days" id="m3-days">—<span> days</span></div>
-                    </div>
-                    <div class="result-date" id="m3-date">—</div>
+                    <div class="result-body"></div>
                     <div class="result-desc">Weighted average favouring the last 5 updates</div>
                 </div>
             </div>
@@ -509,7 +503,7 @@
 
         <div class="card card-cyan">
             <div class="card-title">📋 Update History</div>
-            <div class="card-sub">// all <span id="total-count">—</span> entries tracked </span></div>
+            <div class="card-sub">// all <span id="total-count">—</span> entries tracked</div>
 
             <div class="table-wrapper">
                 <table>
@@ -567,7 +561,6 @@ for (let i = 1; i < updates.length; i++) {
 const lastUpdate = updates[updates.length - 1];
 const lastDate = lastUpdate.parsedDate;
 const daysSinceLastNorm = daysBetween(lastDate, today);
-const lastIndex = updates.length - 1;
 
 const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
 
@@ -584,92 +577,77 @@ const getWeightedAvg = () => {
 };
 const weightedAvg = getWeightedAvg();
 
-function predictDate(targetUpdateNum) {
-    if (targetUpdateNum <= lastIndex) {
-        const actual = updates[targetUpdateNum - 1];
+// Render into a stable .result-body div — never touches .result-tag or .result-desc
+function renderBox(boxId, days, date, lastFullUpdateValue, alreadyReleased) {
+    const box = document.getElementById(boxId);
+    const body = box.querySelector('.result-body');
+
+    if (alreadyReleased) {
+        body.innerHTML = `<span class="result-status" style="color:var(--green)">✓ Update already released</span>`;
+        return;
     }
 
-    const stepsNeeded = targetUpdateNum - lastIndex;
+    const daysFromNow = daysBetween(today, date);
+    const isOverdue = daysFromNow < 0;
+    const sign = isOverdue ? 'OVERDUE by ' : 'Expected in ';
+    const abs = Math.abs(daysFromNow);
 
-    if (stepsNeeded <= 0) {
-        const found = updates.find(u => u.name === `Update ${targetUpdateNum}`) ||
-                      updates[targetUpdateNum] || updates[lastIndex];
-        return {
-            m1: { days: 0, date: found ? found.parsedDate : lastDate },
-            m2: { days: 0, date: found ? found.parsedDate : lastDate },
-            m3: { days: 0, date: found ? found.parsedDate : lastDate },
-            released: true,
-            actualDate: found ? found.parsedDate : lastDate
-        };
-    }
-
-    const m1Days = avgGap * stepsNeeded;
-    const m1Date = addDays(lastDate, m1Days);
-
-    let m2Days = 0;
-    let lastGapVal = gaps[gaps.length - 1];
-    for (let i = 0; i < stepsNeeded; i++) {
-        lastGapVal = lastGapVal * r_cg;
-        m2Days += lastGapVal;
-    }
-    const m2Date = addDays(lastDate, m2Days);
-
-    const m3Days = weightedAvg * stepsNeeded;
-    const m3Date = addDays(lastDate, m3Days);
-
-    return { m1: { days: m1Days, date: m1Date }, m2: { days: m2Days, date: m2Date }, m3: { days: m3Days, date: m3Date }, released: false };
+    body.innerHTML = `
+        <span class="result-status">${fmtDate(date)} — ${sign}${abs} DAYS</span>
+        <div class="result-days">Predicted ${Math.round(days)} days after Update ${lastFullUpdateValue}</div>
+    `;
 }
 
 function calculate() {
-    const raw = parseInt(document.getElementById('updateInput').value, 10);
-    if (isNaN(raw) || raw < 1) return;
+    const targetUpdateNum = parseFloat(document.getElementById('updateInput').value);
+    if (isNaN(targetUpdateNum)) return;
 
-    const pred = predictDate(raw);
+    const lastUpdateName = updates[updates.length - 1].name;
+    const lastFullUpdateValue = parseFloat(lastUpdateName.replace('Update ', ''));
 
     document.getElementById('stat-avg').textContent    = Math.round(avgGap) + 'd';
     document.getElementById('stat-recent').textContent = Math.round(weightedAvg) + 'd';
     document.getElementById('stat-since').textContent  = daysSinceLastNorm + 'd';
 
-    if (pred.released) {
-        const label = `Already released: ${fmtDate(pred.actualDate)}`;
-        ['m1', 'm2', 'm3'].forEach(m => {
-            document.getElementById(`${m}-days`).innerHTML = '✓<span> released</span>';
-            document.getElementById(`${m}-date`).textContent = label;
-        });
-        document.getElementById('prog-fill').style.width = '100%';
-        document.getElementById('prog-pct').textContent = '100%';
-        document.getElementById('prog-note').textContent = `Update ${raw} is already out!`;
+    if (targetUpdateNum <= lastFullUpdateValue) {
+        renderBox('box-m1', 0, null, lastFullUpdateValue, true);
+        renderBox('box-m2', 0, null, lastFullUpdateValue, true);
+        renderBox('box-m3', 0, null, lastFullUpdateValue, true);
         return;
     }
 
-    const fmtResult = (method, days, date) => {
-        const daysFromNow = daysBetween(today, date);
-        const sign = daysFromNow < 0 ? 'OVERDUE by ' : 'in ';
-        const abs = Math.abs(daysFromNow);
-        document.getElementById(`${method}-days`).innerHTML =
-            `${Math.round(days)}<span> days from Update ${lastIndex}</span>`;
-        document.getElementById(`${method}-date`).textContent =
-            `${fmtDate(date)} · ${sign}${abs} day${abs !== 1 ? 's' : ''}`;
+    const pred = predictDate(targetUpdateNum, lastFullUpdateValue);
+
+    renderBox('box-m1', pred.m1.days, pred.m1.date, lastFullUpdateValue, false);
+    renderBox('box-m2', pred.m2.days, pred.m2.date, lastFullUpdateValue, false);
+    renderBox('box-m3', pred.m3.days, pred.m3.date, lastFullUpdateValue, false);
+
+    // Progress bar based on method 1
+    const totalDays = pred.m1.days;
+    const pct = Math.min(100, Math.max(0, Math.round((daysSinceLastNorm / totalDays) * 100)));
+    document.getElementById('prog-fill').style.width = pct + '%';
+    document.getElementById('prog-pct').textContent = pct + '%';
+    document.getElementById('prog-note').textContent = `${daysSinceLastNorm}d elapsed of ~${Math.round(totalDays)}d predicted`;
+}
+
+function predictDate(targetUpdateNum, lastFullUpdateValue) {
+    const stepsNeeded = targetUpdateNum - lastFullUpdateValue;
+
+    const m1Days = avgGap * stepsNeeded;
+    const m1Date = addDays(lastDate, m1Days);
+
+    const lastGapVal = gaps[gaps.length - 1];
+    const m2Days = (lastGapVal * Math.pow(r_cg, stepsNeeded)) * stepsNeeded;
+    const m2Date = addDays(lastDate, m2Days);
+
+    const m3Days = weightedAvg * stepsNeeded;
+    const m3Date = addDays(lastDate, m3Days);
+
+    return {
+        m1: { days: m1Days, date: m1Date },
+        m2: { days: m2Days, date: m2Date },
+        m3: { days: m3Days, date: m3Date }
     };
-
-    fmtResult('m1', pred.m1.days, pred.m1.date);
-    fmtResult('m2', pred.m2.days, pred.m2.date);
-    fmtResult('m3', pred.m3.days, pred.m3.date);
-
-    const totalWait = pred.m1.days;
-    const stepsNeeded = raw - lastIndex;
-    const gapForNext = avgGap;
-    const waitForNext = gapForNext;
-    const pct = stepsNeeded === 1
-        ? Math.min(100, Math.round((daysSinceLastNorm / avgGap) * 100))
-        : 0;
-    const pctClamped = Math.max(0, Math.min(100, pct));
-    document.getElementById('prog-fill').style.width = pctClamped + '%';
-    document.getElementById('prog-pct').textContent = pctClamped + '%';
-    document.getElementById('prog-note').textContent =
-        stepsNeeded === 1
-            ? `${daysSinceLastNorm}d elapsed of ~${Math.round(avgGap)}d average`
-            : `${stepsNeeded} update${stepsNeeded > 1 ? 's' : ''} away from Update ${lastIndex}`;
 }
 
 function buildTable() {
@@ -723,15 +701,10 @@ function buildChart() {
         const x = PAD.left + i * (chartW / gaps.length);
         const barH = (g / maxGap) * chartH;
         const y = PAD.top + chartH - barH;
-
         const col = g <= 30 ? '#34d399' : g <= 60 ? '#fbbf24' : '#f87171';
         const name = updates[i + 1].name;
 
-        html += `
-            <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="0.75">
-                <title>${name}: ${g} days</title>
-            </rect>
-        `;
+        html += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="0.75"><title>${name}: ${g} days</title></rect>`;
 
         if (i % 3 === 0 || i === gaps.length - 1) {
             html += `<text x="${x + barW / 2}" y="${H - 5}" text-anchor="middle" fill="#475569" font-size="8" font-family="Share Tech Mono, monospace">${updates[i+1].name.replace('Update ', 'U')}</text>`;
