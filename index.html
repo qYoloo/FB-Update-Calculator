@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FB Update Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* used ai to speed up process of writing stuff, don't care gng, just wanted to have smth */
+        :root {
+            --bg: #0d0d12;
+            --card: #13131a;
+            --card2: #16161f;
+            --border: #2a2a3a;
+            --purple: #a78bfa;
+            --purple-dim: #7c5cbf;
+            --cyan: #22d3ee;
+            --cyan-dim: #0e7490;
+            --pink: #f472b6;
+            --green: #34d399;
+            --yellow: #fbbf24;
+            --red: #f87171;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --sub: #94a3b8;
+            --glow-purple: 0 0 20px rgba(167, 139, 250, 0.2);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 30px 20px;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.07;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .blob-1 { width: 400px; height: 400px; background: var(--purple); top: -100px; left: -100px; }
+        .blob-2 { width: 350px; height: 350px; background: var(--cyan); bottom: -80px; right: -80px; }
+        .blob-3 { width: 250px; height: 250px; background: var(--pink); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+        .page-wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .site-header {
+            text-align: center;
+            padding: 10px 0 20px;
+        }
+        .site-header h1 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 2.6rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--purple) 0%, var(--cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+        }
+        .site-header p {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            border-radius: 20px;
+            padding: 3px 12px;
+            font-size: 0.75rem;
+            color: var(--green);
+            font-family: 'Share Tech Mono', monospace;
+            margin-top: 10px;
+        }
+        .live-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .cards-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+        .card:hover { border-color: #3a3a50; }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            border-radius: 16px 16px 0 0;
+        }
+        .card-purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+        .card-cyan::before { background: linear-gradient(90deg, var(--cyan), transparent); }
+
+        .card-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--purple);
+            margin-bottom: 4px;
+        }
+        .card-cyan .card-title { color: var(--cyan); }
+        .card-sub {
+            font-size: 0.78rem;
+            color: var(--muted);
+            font-family: 'Share Tech Mono', monospace;
+            margin-bottom: 24px;
+        }
+
+        .input-group { margin-bottom: 24px; }
+        .input-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--sub);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-prefix {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+        input[type="number"] {
+            flex: 1;
+            padding: 11px 14px;
+            background: #0d0d12;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--purple);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.2rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+        input[type="number"]:focus {
+            border-color: var(--purple-dim);
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.12);
+        }
+
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-chip {
+            background: #0d0d12;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        }
+        .stat-chip .val {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--purple);
+        }
+        .card-cyan .stat-chip .val { color: var(--cyan); }
+        .stat-chip .lbl {
+            font-size: 0.68rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        .results-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .result-box {
+            background: #0d0d12;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            border-left: 3px solid var(--purple);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .result-box:hover { transform: translateX(3px); box-shadow: var(--glow-purple); }
+        .result-box.method-2 { border-left-color: var(--pink); }
+        .result-box.method-2:hover { box-shadow: 0 0 20px rgba(244, 114, 182, 0.15); }
+        .result-box.method-3 { border-left-color: var(--yellow); }
+        .result-box.method-3:hover { box-shadow: 0 0 20px rgba(251, 191, 36, 0.15); }
+
+        .result-tag {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            font-family: 'Share Tech Mono', monospace;
+            margin-bottom: 6px;
+        }
+        .result-main {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .result-days {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .result-days span { font-size: 0.85rem; color: var(--muted); font-family: 'Nunito', sans-serif; font-weight: 600; }
+        .result-date {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            color: var(--cyan);
+            margin-top: 4px;
+        }
+        .result-desc {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .progress-section { margin-top: 24px; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--sub);
+            margin-bottom: 8px;
+        }
+        .progress-track {
+            height: 6px;
+            background: #1e1e2e;
+            border-radius: 99px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--purple), var(--cyan));
+            border-radius: 99px;
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .progress-footnote {
+            font-size: 0.72rem;
+            color: var(--muted);
+            text-align: right;
+            margin-top: 5px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .table-wrapper {
+            overflow-y: auto;
+            max-height: 480px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        thead th {
+            background: #0d0d12;
+            color: var(--muted);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Share Tech Mono', monospace;
+        }
+        tbody tr {
+            border-bottom: 1px solid #1a1a25;
+            transition: background 0.15s;
+        }
+        tbody tr:hover { background: #16162a; }
+        tbody tr:last-child { border-bottom: none; }
+        tbody td {
+            padding: 10px 14px;
+            color: var(--sub);
+            vertical-align: middle;
+        }
+        .td-update {
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+        .td-half { color: var(--muted); font-style: italic; }
+        .td-date {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.78rem;
+            color: var(--cyan);
+        }
+        .td-gap {
+            font-family: 'Share Tech Mono', monospace;
+            font-weight: 700;
+        }
+        .td-gap.fast { color: var(--green); }
+        .td-gap.medium { color: var(--yellow); }
+        .td-gap.slow { color: var(--red); }
+        .fruit-tag {
+            display: inline-block;
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-size: 0.72rem;
+            margin: 1px;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+        .fruit-tag.C { background: rgba(224,224,224,0.08); border: 1px solid rgba(224,224,224,0.2); color: #d1d5db; }
+        .fruit-tag.U { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.25); color: #4ade80; }
+        .fruit-tag.R { background: rgba(99,102,241,0.1);  border: 1px solid rgba(99,102,241,0.3);  color: #818cf8; }
+        .fruit-tag.E { background: rgba(168,85,247,0.1);  border: 1px solid rgba(168,85,247,0.3);  color: #c084fc; }
+        .fruit-tag.L { background: rgba(249,115,22,0.1);  border: 1px solid rgba(184, 77, 1, 0.3);  color: #d16a16; }
+        .fruit-tag.M { background: rgba(185, 163, 97, 0.1);   border: 1px solid rgba(204, 176, 93, 0.3);   color: #e9ca4e; }
+        .td-notes { font-size: 0.75rem; max-width: 140px; color: var(--muted); }
+
+        .full-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+        .full-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--green), transparent);
+            border-radius: 16px 16px 0 0;
+        }
+        .full-card .card-title { color: var(--green); }
+
+        .chart-container {
+            margin-top: 20px;
+            position: relative;
+            height: 140px;
+        }
+        svg.gap-chart { width: 100%; height: 100%; overflow: visible; }
+
+        @media (max-width: 800px) {
+            .cards-row { grid-template-columns: 1fr; }
+            .site-header h1 { font-size: 2rem; }
+        }
+
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .card, .full-card {
+            animation: fadeSlideUp 0.5s ease both;
+        }
+        .cards-row .card:nth-child(2) { animation-delay: 0.08s; }
+        .full-card { animation-delay: 0.16s; }
+    </style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="page-wrapper">
+
+    <div class="site-header">
+        <h1>FB UPDATE PREDICTOR</h1>
+        <p>// Fruit Battlegrounds - We are known to update like monthly or some, foo.</p>
+        <div style="display:flex;justify-content:center;">
+            <div class="live-badge"><div class="live-dot"></div><span id="days-since-badge">Loading...</span></div>
+        </div>
+    </div>
+
+    <div class="cards-row">
+
+        <div class="card card-purple">
+            <div class="card-title">Update Predictor</div>
+            <div class="card-sub">// estimate when a specific update will drop, im too lazy to add decimals so you need to do 1 extra update because 14.5 counts as 15, e.g. type 23 and you get update 22</div>
+
+            <div class="input-group">
+                <label class="input-label">Target Update Number</label>
+                <div class="input-row">
+                    <span class="input-prefix">Update</span>
+                    <input type="number" id="updateInput" value="23" min="1" max="99" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="stats-strip">
+                <div class="stat-chip">
+                    <div class="val" id="stat-avg">—</div>
+                    <div class="lbl">Avg Gap</div>
+                </div>
+                <div class="stat-chip">
+                    <div class="val" id="stat-recent">—</div>
+                    <div class="lbl">Recent Avg</div>
+                </div>
+                <div class="stat-chip">
+                    <div class="val" id="stat-since">—</div>
+                    <div class="lbl">Days Since</div>
+                </div>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-box">
+                    <div class="result-tag">Method 1 — Simple Average</div>
+                    <div class="result-main">
+                        <div class="result-days" id="m1-days">—<span> days</span></div>
+                    </div>
+                    <div class="result-date" id="m1-date">—</div>
+                    <div class="result-desc">Average of all historical gaps × updates remaining</div>
+                </div>
+                <div class="result-box method-2">
+                    <div class="result-tag">Method 2 — Compound Growth Rate</div>
+                    <div class="result-main">
+                        <div class="result-days" id="m2-days">—<span> days</span></div>
+                    </div>
+                    <div class="result-date" id="m2-date">—</div>
+                    <div class="result-desc">Models the increasing gap trend with exponential growth</div>
+                </div>
+                <div class="result-box method-3">
+                    <div class="result-tag">Method 3 — Recent Weighted</div>
+                    <div class="result-main">
+                        <div class="result-days" id="m3-days">—<span> days</span></div>
+                    </div>
+                    <div class="result-date" id="m3-date">—</div>
+                    <div class="result-desc">Weighted average favouring the last 5 updates</div>
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-label">
+                    <span>Wait progress (Method 1)</span>
+                    <span id="prog-pct">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+                </div>
+                <div class="progress-footnote" id="prog-note">—</div>
+            </div>
+        </div>
+
+        <div class="card card-cyan">
+            <div class="card-title">📋 Update History</div>
+            <div class="card-sub">// all <span id="total-count">—</span> entries tracked </span></div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Date</th>
+                            <th>Gap</th>
+                            <th>Fruits Added</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="full-card">
+        <div class="card-title">Update Gap Trend Over Time</div>
+        <div class="card-sub">// days between each update - mom i made cool looking bars.</div>
+        <div class="chart-container">
+            <svg class="gap-chart" id="gap-chart" viewBox="0 0 900 120" preserveAspectRatio="none"></svg>
+        </div>
+    </div>
+
+</div>
+
+<script src="data.js"></script>
+<script>
+const fmtDate = (date) => {
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+
+const addDays = (date, n) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + Math.round(n));
+    return d;
+};
+
+today.setHours(0, 0, 0, 0);
+
+const updates = UPDATE_HISTORY.map((u) => ({
+    ...u,
+    parsedDate: parseDate(u.date),
+}));
+
+const gaps = [];
+for (let i = 1; i < updates.length; i++) {
+    gaps.push(daysBetween(updates[i - 1].parsedDate, updates[i].parsedDate));
+}
+
+const lastUpdate = updates[updates.length - 1];
+const lastDate = lastUpdate.parsedDate;
+const daysSinceLastNorm = daysBetween(lastDate, today);
+const lastIndex = updates.length - 1;
+
+const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+
+const validGaps = gaps.filter(g => g > 3);
+const r_cg = Math.pow(validGaps[validGaps.length - 1] / validGaps[0], 1 / (validGaps.length - 1));
+
+const getWeightedAvg = () => {
+    const weights = gaps.map((g, i) => ({
+        gap: g,
+        w: i >= gaps.length - 5 ? 3 : 1
+    }));
+    const totalW = weights.reduce((a, b) => a + b.w, 0);
+    return weights.reduce((a, b) => a + b.gap * b.w, 0) / totalW;
+};
+const weightedAvg = getWeightedAvg();
+
+function predictDate(targetUpdateNum) {
+    if (targetUpdateNum <= lastIndex) {
+        const actual = updates[targetUpdateNum - 1];
+    }
+
+    const stepsNeeded = targetUpdateNum - lastIndex;
+
+    if (stepsNeeded <= 0) {
+        const found = updates.find(u => u.name === `Update ${targetUpdateNum}`) ||
+                      updates[targetUpdateNum] || updates[lastIndex];
+        return {
+            m1: { days: 0, date: found ? found.parsedDate : lastDate },
+            m2: { days: 0, date: found ? found.parsedDate : lastDate },
+            m3: { days: 0, date: found ? found.parsedDate : lastDate },
+            released: true,
+            actualDate: found ? found.parsedDate : lastDate
+        };
+    }
+
+    const m1Days = avgGap * stepsNeeded;
+    const m1Date = addDays(lastDate, m1Days);
+
+    let m2Days = 0;
+    let lastGapVal = gaps[gaps.length - 1];
+    for (let i = 0; i < stepsNeeded; i++) {
+        lastGapVal = lastGapVal * r_cg;
+        m2Days += lastGapVal;
+    }
+    const m2Date = addDays(lastDate, m2Days);
+
+    const m3Days = weightedAvg * stepsNeeded;
+    const m3Date = addDays(lastDate, m3Days);
+
+    return { m1: { days: m1Days, date: m1Date }, m2: { days: m2Days, date: m2Date }, m3: { days: m3Days, date: m3Date }, released: false };
+}
+
+function calculate() {
+    const raw = parseInt(document.getElementById('updateInput').value, 10);
+    if (isNaN(raw) || raw < 1) return;
+
+    const pred = predictDate(raw);
+
+    document.getElementById('stat-avg').textContent    = Math.round(avgGap) + 'd';
+    document.getElementById('stat-recent').textContent = Math.round(weightedAvg) + 'd';
+    document.getElementById('stat-since').textContent  = daysSinceLastNorm + 'd';
+
+    if (pred.released) {
+        const label = `Already released: ${fmtDate(pred.actualDate)}`;
+        ['m1', 'm2', 'm3'].forEach(m => {
+            document.getElementById(`${m}-days`).innerHTML = '✓<span> released</span>';
+            document.getElementById(`${m}-date`).textContent = label;
+        });
+        document.getElementById('prog-fill').style.width = '100%';
+        document.getElementById('prog-pct').textContent = '100%';
+        document.getElementById('prog-note').textContent = `Update ${raw} is already out!`;
+        return;
+    }
+
+    const fmtResult = (method, days, date) => {
+        const daysFromNow = daysBetween(today, date);
+        const sign = daysFromNow < 0 ? 'OVERDUE by ' : 'in ';
+        const abs = Math.abs(daysFromNow);
+        document.getElementById(`${method}-days`).innerHTML =
+            `${Math.round(days)}<span> days from Update ${lastIndex}</span>`;
+        document.getElementById(`${method}-date`).textContent =
+            `${fmtDate(date)} · ${sign}${abs} day${abs !== 1 ? 's' : ''}`;
+    };
+
+    fmtResult('m1', pred.m1.days, pred.m1.date);
+    fmtResult('m2', pred.m2.days, pred.m2.date);
+    fmtResult('m3', pred.m3.days, pred.m3.date);
+
+    const totalWait = pred.m1.days;
+    const stepsNeeded = raw - lastIndex;
+    const gapForNext = avgGap;
+    const waitForNext = gapForNext;
+    const pct = stepsNeeded === 1
+        ? Math.min(100, Math.round((daysSinceLastNorm / avgGap) * 100))
+        : 0;
+    const pctClamped = Math.max(0, Math.min(100, pct));
+    document.getElementById('prog-fill').style.width = pctClamped + '%';
+    document.getElementById('prog-pct').textContent = pctClamped + '%';
+    document.getElementById('prog-note').textContent =
+        stepsNeeded === 1
+            ? `${daysSinceLastNorm}d elapsed of ~${Math.round(avgGap)}d average`
+            : `${stepsNeeded} update${stepsNeeded > 1 ? 's' : ''} away from Update ${lastIndex}`;
+}
+
+function buildTable() {
+    const tbody = document.getElementById('history-tbody');
+    document.getElementById('total-count').textContent = updates.length;
+
+    updates.forEach((u, i) => {
+        const gap = i === 0 ? null : gaps[i - 1];
+        const gapClass = gap === null ? '' : gap <= 30 ? 'fast' : gap <= 60 ? 'medium' : 'slow';
+        const gapText = gap === null ? '—' : gap + 'd';
+
+        const fruitsHtml = u.fruits.map(f => {
+            const match = f.match(/\(([A-Z])\)/);
+            const rarity = match ? match[1] : 'C';
+            return `<span class="fruit-tag ${rarity}">${f}</span>`;
+        }).join('');
+
+        const isLatest = i === updates.length - 1;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="td-update ${u.isHalfUpdate ? 'td-half' : ''}" style="${isLatest ? 'color:var(--yellow)' : ''}">
+                ${isLatest ? '⭐ ' : ''}${u.name}
+            </td>
+            <td class="td-date">${u.date}</td>
+            <td class="td-gap ${gapClass}">${gapText}</td>
+            <td>${fruitsHtml}</td>
+            <td class="td-notes">${u.notes}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    setTimeout(() => {
+        const wrapper = document.querySelector('.table-wrapper');
+        wrapper.scrollTop = wrapper.scrollHeight;
+    }, 100);
+}
+
+function buildChart() {
+    const svg = document.getElementById('gap-chart');
+    const W = 900, H = 120, PAD = { top: 10, bot: 25, left: 10, right: 10 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bot;
+
+    const maxGap = Math.max(...gaps);
+    const barW = Math.max(2, (chartW / gaps.length) - 3);
+
+    let html = '';
+
+    gaps.forEach((g, i) => {
+        const x = PAD.left + i * (chartW / gaps.length);
+        const barH = (g / maxGap) * chartH;
+        const y = PAD.top + chartH - barH;
+
+        const col = g <= 30 ? '#34d399' : g <= 60 ? '#fbbf24' : '#f87171';
+        const name = updates[i + 1].name;
+
+        html += `
+            <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${col}" opacity="0.75">
+                <title>${name}: ${g} days</title>
+            </rect>
+        `;
+
+        if (i % 3 === 0 || i === gaps.length - 1) {
+            html += `<text x="${x + barW / 2}" y="${H - 5}" text-anchor="middle" fill="#475569" font-size="8" font-family="Share Tech Mono, monospace">${updates[i+1].name.replace('Update ', 'U')}</text>`;
+        }
+    });
+
+    const avgY = PAD.top + chartH - (avgGap / maxGap) * chartH;
+    html += `<line x1="${PAD.left}" y1="${avgY}" x2="${W - PAD.right}" y2="${avgY}" stroke="rgba(255,211,153,1)" stroke-width="2" stroke-dasharray="4,3"/>`;
+    svg.innerHTML = html;
+}
+
+function updateBadge() {
+    document.getElementById('days-since-badge').textContent =
+        `${daysSinceLastNorm} days since ${lastUpdate.name} (${lastUpdate.date})`;
+}
+
+buildTable();
+buildChart();
+updateBadge();
+calculate();
+</script>
+</body>
+</html>
